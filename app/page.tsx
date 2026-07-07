@@ -2,6 +2,7 @@
 
 import { Countdown } from "@/components/Countdown";
 import { HabitTracker } from "@/components/HabitTracker";
+import { TodoList } from "@/components/TodoList";
 import { useToday } from "@/lib/useToday";
 
 export default function Home() {
@@ -16,6 +17,7 @@ export default function Home() {
         </header>
 
         <Countdown todayStr={todayStr} />
+        <TodoList todayStr={todayStr} />
         <HabitTracker todayStr={todayStr} />
       </main>
     </div>

@@ -9,3 +9,9 @@ export type CountdownTarget = {
   label: string;
   targetDate: string; // "YYYY-MM-DD"
 };
+
+export type Todo = {
+  id: string;
+  text: string;
+  done: boolean;
+};
