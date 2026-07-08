@@ -23,3 +23,12 @@ export type PomodoroState = {
   breakMinutes: number; // 休憩時間設定(分)
   totalsByDate: Record<string, number>; // 日付("YYYY-MM-DD") -> 実際に作業した秒数の累計
 };
+
+export type GoalStage = "year" | "halfYear" | "threeMonths" | "oneMonth";
+
+export type Goal = {
+  text: string;
+  achieved: boolean;
+};
+
+export type Goals = Record<GoalStage, Goal>;
