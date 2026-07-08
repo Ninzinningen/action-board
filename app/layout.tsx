@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "行動管理ボード",
-  description: "今日のToDo・習慣・ストリーク・目標日カウントダウンを1画面で管理する個人用ダッシュボード",
+  description: "今日のToDo・作業タイマー・習慣・ストリーク・目標日カウントダウンを1画面で管理する個人用ダッシュボード",
 };
 
 export default function RootLayout({

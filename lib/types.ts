@@ -15,3 +15,11 @@ export type Todo = {
   text: string;
   done: boolean;
 };
+
+export type PomodoroPhase = "work" | "break";
+
+export type PomodoroState = {
+  workMinutes: number; // 作業時間設定(分)
+  breakMinutes: number; // 休憩時間設定(分)
+  totalsByDate: Record<string, number>; // 日付("YYYY-MM-DD") -> 実際に作業した秒数の累計
+};
