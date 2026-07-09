@@ -27,3 +27,18 @@ export function daysBetween(fromStr: string, toStr: string): number {
   const ms = to.getTime() - from.getTime();
   return Math.round(ms / (24 * 60 * 60 * 1000));
 }
+
+export type YearMonth = { year: number; month: number }; // month: 1-12
+
+export function daysInMonth({ year, month }: YearMonth): number {
+  return new Date(year, month, 0).getDate();
+}
+
+export function firstWeekdayOfMonth({ year, month }: YearMonth): number {
+  return new Date(year, month - 1, 1).getDay();
+}
+
+export function addMonths({ year, month }: YearMonth, delta: number): YearMonth {
+  const total = year * 12 + (month - 1) + delta;
+  return { year: Math.floor(total / 12), month: (((total % 12) + 12) % 12) + 1 };
+}

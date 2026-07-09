@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { loadData } from "./storage";
-import { yesterdayOf } from "./date";
 import type { Habit } from "./types";
 
-const DAYS = 14;
 const POLL_INTERVAL_MS = 3000;
 
 export type DayHistoryEntry = {
@@ -14,7 +12,7 @@ export type DayHistoryEntry = {
   habitsCompleted: number;
 };
 
-export function useHistory(todayStr: string): DayHistoryEntry[] {
+export function useHistoryData() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [workTotals, setWorkTotals] = useState<Record<string, number>>({});
 
@@ -29,15 +27,15 @@ export function useHistory(todayStr: string): DayHistoryEntry[] {
     return () => clearInterval(interval);
   }, []);
 
-  const entries: DayHistoryEntry[] = [];
-  let cursor = todayStr;
-  for (let i = 0; i < DAYS; i++) {
-    entries.unshift({
-      date: cursor,
-      workSeconds: workTotals[cursor] ?? 0,
-      habitsCompleted: habits.filter((h) => h.checkins[cursor]).length,
-    });
-    cursor = yesterdayOf(cursor);
+  function getEntry(date: string): DayHistoryEntry {
+    return {
+      date,
+      workSeconds: workTotals[date] ?? 0,
+      habitsCompleted: habits.filter((h) => h.checkins[date]).length,
+    };
   }
-  return entries;
+
+  const maxWorkSeconds = Math.max(0, ...Object.values(workTotals));
+
+  return { getEntry, maxWorkSeconds };
 }
