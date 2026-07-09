@@ -6,7 +6,16 @@ import type { PomodoroPhase, PomodoroState } from "./types";
 
 const STORAGE_KEY = "workTimer";
 
-const defaultState: PomodoroState = { workMinutes: 25, breakMinutes: 5, totalsByDate: {} };
+const defaultState: PomodoroState = {
+  workMinutes: 25,
+  breakMinutes: 5,
+  longBreakMinutes: 15,
+  longBreakEnabled: true,
+  longBreakInterval: 4,
+  totalSets: 0, // 無限に繰り返す
+  totalsByDate: {},
+  completedSetsByDate: {},
+};
 
 type Status = "idle" | "running" | "paused";
 
@@ -28,7 +37,12 @@ function playBeep() {
 export function usePomodoro(todayStr: string) {
   const [workMinutes, setWorkMinutesState] = useState(defaultState.workMinutes);
   const [breakMinutes, setBreakMinutesState] = useState(defaultState.breakMinutes);
+  const [longBreakMinutes, setLongBreakMinutesState] = useState(defaultState.longBreakMinutes);
+  const [longBreakEnabled, setLongBreakEnabledState] = useState(defaultState.longBreakEnabled);
+  const [longBreakInterval, setLongBreakIntervalState] = useState(defaultState.longBreakInterval);
+  const [totalSets, setTotalSetsState] = useState(defaultState.totalSets);
   const [totalsByDate, setTotalsByDate] = useState<Record<string, number>>({});
+  const [completedSetsByDate, setCompletedSetsByDate] = useState<Record<string, number>>({});
   const [loaded, setLoaded] = useState(false);
 
   const [phase, setPhase] = useState<PomodoroPhase>("work");
@@ -42,6 +56,10 @@ export function usePomodoro(todayStr: string) {
   const [now, setNow] = useState<number | null>(null);
   // 作業フェーズの現在の実行区間が始まった時点の today 合計と、その開始時刻
   const [workSegment, setWorkSegment] = useState<WorkSegment | null>(null);
+  // 今回のラウンドで完了した作業セット数(リロードでリセットされる。永続化はcompletedSetsByDate側)
+  const [sessionSetCount, setSessionSetCount] = useState(0);
+  // 目標セット数に到達して自動停止した直後かどうか
+  const [allSetsFinished, setAllSetsFinished] = useState(false);
 
   useEffect(() => {
     // サーバー側ではlocalStorageが無いため、マウント後に読み込んで反映する
@@ -51,14 +69,39 @@ export function usePomodoro(todayStr: string) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setWorkMinutesState(workMinutesLoaded);
     setBreakMinutesState(raw.breakMinutes ?? defaultState.breakMinutes);
+    setLongBreakMinutesState(raw.longBreakMinutes ?? defaultState.longBreakMinutes);
+    setLongBreakEnabledState(raw.longBreakEnabled ?? defaultState.longBreakEnabled);
+    setLongBreakIntervalState(raw.longBreakInterval ?? defaultState.longBreakInterval);
+    setTotalSetsState(raw.totalSets ?? defaultState.totalSets);
     setTotalsByDate(raw.totalsByDate ?? {});
+    setCompletedSetsByDate(raw.completedSetsByDate ?? {});
     setPausedRemaining(workMinutesLoaded * 60);
     setLoaded(true);
   }, []);
 
   useEffect(() => {
-    if (loaded) saveData(STORAGE_KEY, { workMinutes, breakMinutes, totalsByDate });
-  }, [workMinutes, breakMinutes, totalsByDate, loaded]);
+    if (loaded)
+      saveData(STORAGE_KEY, {
+        workMinutes,
+        breakMinutes,
+        longBreakMinutes,
+        longBreakEnabled,
+        longBreakInterval,
+        totalSets,
+        totalsByDate,
+        completedSetsByDate,
+      });
+  }, [
+    workMinutes,
+    breakMinutes,
+    longBreakMinutes,
+    longBreakEnabled,
+    longBreakInterval,
+    totalSets,
+    totalsByDate,
+    completedSetsByDate,
+    loaded,
+  ]);
 
   useEffect(() => {
     if (status !== "running") {
@@ -84,28 +127,55 @@ export function usePomodoro(todayStr: string) {
     setTotalsByDate((prev) => ({ ...prev, [todayStr]: workSegment.baseline + elapsed }));
   }, [now, status, phase, workSegment, todayStr]);
 
-  // フェーズ完了検知: 残り時間が0になったら音を鳴らして次のフェーズへ
+  // フェーズ完了検知: 残り時間が0になったら音を鳴らして次のフェーズへ。休憩明けは自動的に次の作業サイクルへループする
   useEffect(() => {
     if (status !== "running" || remainingSeconds > 0) return;
     playBeep();
     if (phase === "work") {
+      const nextSetCount = sessionSetCount + 1;
+      const useLongBreak = longBreakEnabled && nextSetCount % longBreakInterval === 0;
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPhase("break");
-      setEndAt(Date.now() + breakMinutes * 60 * 1000);
+      setSessionSetCount(nextSetCount);
+      setCompletedSetsByDate((prev) => ({ ...prev, [todayStr]: (prev[todayStr] ?? 0) + 1 }));
+      setPhase(useLongBreak ? "longBreak" : "break");
+      setEndAt(Date.now() + (useLongBreak ? longBreakMinutes : breakMinutes) * 60 * 1000);
       setWorkSegment(null);
     } else {
+      const reachedLimit = totalSets > 0 && sessionSetCount >= totalSets;
       setPhase("work");
-      setStatus("idle");
       setEndAt(null);
       setPausedRemaining(workMinutes * 60);
+      if (reachedLimit) {
+        setStatus("idle");
+        setSessionSetCount(0);
+        setAllSetsFinished(true);
+      } else {
+        // 休憩終了、手動操作なしで次の作業サイクルへ継続する
+        setEndAt(Date.now() + workMinutes * 60 * 1000);
+        setWorkSegment({ baseline: totalsByDate[todayStr] ?? 0, startedAt: Date.now() });
+      }
     }
-  }, [remainingSeconds, status, phase, breakMinutes, workMinutes]);
+  }, [
+    remainingSeconds,
+    status,
+    phase,
+    breakMinutes,
+    workMinutes,
+    longBreakEnabled,
+    longBreakInterval,
+    longBreakMinutes,
+    totalSets,
+    sessionSetCount,
+    todayStr,
+    totalsByDate,
+  ]);
 
   function start() {
     setEndAt(Date.now() + pausedRemaining * 1000);
     if (phase === "work") {
       setWorkSegment({ baseline: totalsByDate[todayStr] ?? 0, startedAt: Date.now() });
     }
+    setAllSetsFinished(false);
     setStatus("running");
   }
 
@@ -122,6 +192,8 @@ export function usePomodoro(todayStr: string) {
     setEndAt(null);
     setWorkSegment(null);
     setPausedRemaining(workMinutes * 60);
+    setSessionSetCount(0);
+    setAllSetsFinished(false);
   }
 
   function setWorkMinutes(minutes: number) {
@@ -133,7 +205,24 @@ export function usePomodoro(todayStr: string) {
     setBreakMinutesState(minutes);
   }
 
+  function setLongBreakMinutes(minutes: number) {
+    setLongBreakMinutesState(minutes);
+  }
+
+  function setLongBreakEnabled(enabled: boolean) {
+    setLongBreakEnabledState(enabled);
+  }
+
+  function setLongBreakInterval(sets: number) {
+    setLongBreakIntervalState(sets);
+  }
+
+  function setTotalSets(sets: number) {
+    setTotalSetsState(sets);
+  }
+
   const todayTotalSeconds = totalsByDate[todayStr] ?? 0;
+  const todayCompletedSets = completedSetsByDate[todayStr] ?? 0;
 
   return {
     phase,
@@ -141,11 +230,22 @@ export function usePomodoro(todayStr: string) {
     remainingSeconds,
     workMinutes,
     breakMinutes,
+    longBreakMinutes,
+    longBreakEnabled,
+    longBreakInterval,
+    totalSets,
+    sessionSetCount,
+    allSetsFinished,
     todayTotalSeconds,
+    todayCompletedSets,
     start,
     pause,
     reset,
     setWorkMinutes,
     setBreakMinutes,
+    setLongBreakMinutes,
+    setLongBreakEnabled,
+    setLongBreakInterval,
+    setTotalSets,
   };
 }
