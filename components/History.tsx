@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Card } from "./Card";
+import { DayDetailModal } from "./DayDetailModal";
 import { useHistoryData } from "@/lib/useHistory";
 import { formatDuration } from "@/lib/duration";
 import { addMonths, daysInMonth, firstWeekdayOfMonth, parseDate, type YearMonth } from "@/lib/date";
@@ -35,7 +36,7 @@ export function History({ todayStr }: { todayStr: string }) {
   }, [todayStr]);
 
   const [visible, setVisible] = useState<YearMonth>(currentYearMonth);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [modalDate, setModalDate] = useState<string | null>(null);
 
   const isCurrentMonth = visible.year === currentYearMonth.year && visible.month === currentYearMonth.month;
   const numDays = daysInMonth(visible);
@@ -45,8 +46,6 @@ export function History({ todayStr }: { todayStr: string }) {
     ...Array.from({ length: leadingBlanks }, () => null),
     ...Array.from({ length: numDays }, (_, i) => dateOf(visible, i + 1)),
   ];
-
-  const selectedEntry = selectedDate ? getEntry(selectedDate) : null;
 
   return (
     <Card title="振り返り">
@@ -86,15 +85,16 @@ export function History({ todayStr }: { todayStr: string }) {
           const dayNum = Number(date.slice(-2));
           const { bg, text } = styleForSeconds(entry.workSeconds, maxWorkSeconds);
           const isToday = date === todayStr;
-          const isSelected = date === selectedDate;
+          const isOpen = date === modalDate;
 
           return (
             <button
               key={date}
-              onClick={() => setSelectedDate((prev) => (prev === date ? null : date))}
+              onClick={() => setModalDate(date)}
+              aria-label={date}
               className={`group relative aspect-square rounded-md text-[10px] flex items-center justify-center transition hover:ring-1 hover:ring-gray-400 ${bg} ${text} ${
                 isToday ? "ring-1 ring-emerald-400" : ""
-              } ${isSelected ? "ring-2 ring-gray-100" : ""}`}
+              } ${isOpen ? "ring-2 ring-gray-100" : ""}`}
             >
               {dayNum}
               <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-100 group-hover:block">
@@ -105,11 +105,9 @@ export function History({ todayStr }: { todayStr: string }) {
         })}
       </div>
 
-      <p className="mt-3 min-h-[1.25rem] text-sm text-gray-400">
-        {selectedEntry
-          ? `${monthDay(selectedEntry.date)}: ${formatDuration(selectedEntry.workSeconds)} ・ 習慣${selectedEntry.habitsCompleted}件`
-          : "日付をタップすると詳細が表示されます"}
-      </p>
+      <p className="mt-3 text-center text-xs text-gray-600">日付をタップすると詳細が表示されます</p>
+
+      {modalDate && <DayDetailModal entry={getEntry(modalDate)} onClose={() => setModalDate(null)} />}
     </Card>
   );
 }

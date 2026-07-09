@@ -6,6 +6,8 @@ import type { PomodoroPhase, PomodoroState } from "./types";
 
 const STORAGE_KEY = "workTimer";
 
+const DEFAULT_TAG = "未分類";
+
 const defaultState: PomodoroState = {
   workMinutes: 25,
   breakMinutes: 5,
@@ -15,11 +17,14 @@ const defaultState: PomodoroState = {
   totalSets: 0, // 無限に繰り返す
   totalsByDate: {},
   completedSetsByDate: {},
+  tags: [DEFAULT_TAG],
+  activeTag: DEFAULT_TAG,
+  tagTotalsByDate: {},
 };
 
 type Status = "idle" | "running" | "paused";
 
-type WorkSegment = { baseline: number; startedAt: number };
+type WorkSegment = { baseline: number; tag: string; tagBaseline: number; startedAt: number };
 
 function playBeep() {
   const ctx = new AudioContext();
@@ -43,6 +48,9 @@ export function usePomodoro(todayStr: string) {
   const [totalSets, setTotalSetsState] = useState(defaultState.totalSets);
   const [totalsByDate, setTotalsByDate] = useState<Record<string, number>>({});
   const [completedSetsByDate, setCompletedSetsByDate] = useState<Record<string, number>>({});
+  const [tags, setTags] = useState<string[]>(defaultState.tags);
+  const [activeTag, setActiveTagState] = useState(defaultState.activeTag);
+  const [tagTotalsByDate, setTagTotalsByDate] = useState<Record<string, Record<string, number>>>({});
   const [loaded, setLoaded] = useState(false);
 
   const [phase, setPhase] = useState<PomodoroPhase>("work");
@@ -75,6 +83,10 @@ export function usePomodoro(todayStr: string) {
     setTotalSetsState(raw.totalSets ?? defaultState.totalSets);
     setTotalsByDate(raw.totalsByDate ?? {});
     setCompletedSetsByDate(raw.completedSetsByDate ?? {});
+    const tagsLoaded = raw.tags && raw.tags.length > 0 ? raw.tags : defaultState.tags;
+    setTags(tagsLoaded);
+    setActiveTagState(raw.activeTag && tagsLoaded.includes(raw.activeTag) ? raw.activeTag : tagsLoaded[0]);
+    setTagTotalsByDate(raw.tagTotalsByDate ?? {});
     setPausedRemaining(workMinutesLoaded * 60);
     setLoaded(true);
   }, []);
@@ -90,6 +102,9 @@ export function usePomodoro(todayStr: string) {
         totalSets,
         totalsByDate,
         completedSetsByDate,
+        tags,
+        activeTag,
+        tagTotalsByDate,
       });
   }, [
     workMinutes,
@@ -100,6 +115,9 @@ export function usePomodoro(todayStr: string) {
     totalSets,
     totalsByDate,
     completedSetsByDate,
+    tags,
+    activeTag,
+    tagTotalsByDate,
     loaded,
   ]);
 
@@ -119,12 +137,16 @@ export function usePomodoro(todayStr: string) {
       ? Math.max(0, Math.ceil((endAt - now) / 1000))
       : pausedRemaining;
 
-  // 作業フェーズ実行中: 実際に経過した秒数をリアルタイムで今日の合計に反映する
+  // 作業フェーズ実行中: 実際に経過した秒数をリアルタイムで今日の合計・タグ別合計に反映する
   useEffect(() => {
     if (status !== "running" || phase !== "work" || !workSegment || now === null) return;
     const elapsed = Math.max(0, Math.round((now - workSegment.startedAt) / 1000));
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTotalsByDate((prev) => ({ ...prev, [todayStr]: workSegment.baseline + elapsed }));
+    setTagTotalsByDate((prev) => ({
+      ...prev,
+      [todayStr]: { ...prev[todayStr], [workSegment.tag]: workSegment.tagBaseline + elapsed },
+    }));
   }, [now, status, phase, workSegment, todayStr]);
 
   // フェーズ完了検知: 残り時間が0になったら音を鳴らして次のフェーズへ。休憩明けは自動的に次の作業サイクルへループする
@@ -152,7 +174,12 @@ export function usePomodoro(todayStr: string) {
       } else {
         // 休憩終了、手動操作なしで次の作業サイクルへ継続する
         setEndAt(Date.now() + workMinutes * 60 * 1000);
-        setWorkSegment({ baseline: totalsByDate[todayStr] ?? 0, startedAt: Date.now() });
+        setWorkSegment({
+          baseline: totalsByDate[todayStr] ?? 0,
+          tag: activeTag,
+          tagBaseline: tagTotalsByDate[todayStr]?.[activeTag] ?? 0,
+          startedAt: Date.now(),
+        });
       }
     }
   }, [
@@ -168,12 +195,19 @@ export function usePomodoro(todayStr: string) {
     sessionSetCount,
     todayStr,
     totalsByDate,
+    activeTag,
+    tagTotalsByDate,
   ]);
 
   function start() {
     setEndAt(Date.now() + pausedRemaining * 1000);
     if (phase === "work") {
-      setWorkSegment({ baseline: totalsByDate[todayStr] ?? 0, startedAt: Date.now() });
+      setWorkSegment({
+        baseline: totalsByDate[todayStr] ?? 0,
+        tag: activeTag,
+        tagBaseline: tagTotalsByDate[todayStr]?.[activeTag] ?? 0,
+        startedAt: Date.now(),
+      });
     }
     setAllSetsFinished(false);
     setStatus("running");
@@ -221,6 +255,24 @@ export function usePomodoro(todayStr: string) {
     setTotalSetsState(sets);
   }
 
+  function addTag(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed || tags.includes(trimmed)) return;
+    setTags((prev) => [...prev, trimmed]);
+  }
+
+  function removeTag(name: string) {
+    if (tags.length <= 1) return;
+    setTags((prev) => prev.filter((t) => t !== name));
+    if (activeTag === name) {
+      setActiveTagState(tags.find((t) => t !== name) ?? DEFAULT_TAG);
+    }
+  }
+
+  function setActiveTag(name: string) {
+    setActiveTagState(name);
+  }
+
   const todayTotalSeconds = totalsByDate[todayStr] ?? 0;
   const todayCompletedSets = completedSetsByDate[todayStr] ?? 0;
 
@@ -238,6 +290,8 @@ export function usePomodoro(todayStr: string) {
     allSetsFinished,
     todayTotalSeconds,
     todayCompletedSets,
+    tags,
+    activeTag,
     start,
     pause,
     reset,
@@ -247,5 +301,8 @@ export function usePomodoro(todayStr: string) {
     setLongBreakEnabled,
     setLongBreakInterval,
     setTotalSets,
+    addTag,
+    removeTag,
+    setActiveTag,
   };
 }

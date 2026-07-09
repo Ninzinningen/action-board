@@ -27,6 +27,9 @@ export type PomodoroState = {
   totalSets: number; // 目標セット数(0 = 無限に繰り返す)
   totalsByDate: Record<string, number>; // 日付("YYYY-MM-DD") -> 実際に作業した秒数の累計
   completedSetsByDate: Record<string, number>; // 日付("YYYY-MM-DD") -> 完了した作業セット数
+  tags: string[]; // ユーザーが管理する作業タグの一覧
+  activeTag: string; // 現在選択中のタグ
+  tagTotalsByDate: Record<string, Record<string, number>>; // 日付 -> タグ -> 作業秒数の累計
 };
 
 export type GoalStage = "year" | "halfYear" | "threeMonths" | "oneMonth";

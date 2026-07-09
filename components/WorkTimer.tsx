@@ -27,6 +27,8 @@ export function WorkTimer({ todayStr }: { todayStr: string }) {
     allSetsFinished,
     todayTotalSeconds,
     todayCompletedSets,
+    tags,
+    activeTag,
     start,
     pause,
     reset,
@@ -36,8 +38,12 @@ export function WorkTimer({ todayStr }: { todayStr: string }) {
     setLongBreakEnabled,
     setLongBreakInterval,
     setTotalSets,
+    addTag,
+    removeTag,
+    setActiveTag,
   } = usePomodoro(todayStr);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [newTag, setNewTag] = useState("");
 
   const label =
     status === "idle"
@@ -154,8 +160,73 @@ export function WorkTimer({ todayStr }: { todayStr: string }) {
               </>
             )}
           </div>
+
+          <div className="mb-4">
+            <p className="text-sm text-gray-400 mb-2">タグを管理</p>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="flex items-center gap-1 rounded-full bg-gray-800 border border-gray-700 pl-3 pr-1 py-1 text-xs text-gray-300"
+                >
+                  {tag}
+                  {tags.length > 1 && (
+                    <button
+                      onClick={() => removeTag(tag)}
+                      disabled={!editable}
+                      aria-label={`${tag}を削除`}
+                      className="rounded-full px-1.5 text-gray-500 hover:text-red-400 disabled:opacity-40"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={newTag}
+                disabled={!editable}
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    addTag(newTag);
+                    setNewTag("");
+                  }
+                }}
+                placeholder="新しいタグを入力"
+                className="flex-1 min-w-0 rounded-lg bg-gray-800 border border-gray-700 px-3 py-1.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-emerald-500 disabled:opacity-40"
+              />
+              <button
+                onClick={() => {
+                  addTag(newTag);
+                  setNewTag("");
+                }}
+                disabled={!editable}
+                className="shrink-0 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-40 px-3 py-1.5 text-sm font-medium"
+              >
+                追加
+              </button>
+            </div>
+          </div>
         </>
       )}
+
+      <label className="flex items-center gap-2 text-sm text-gray-400 mb-3">
+        タグ
+        <select
+          value={activeTag}
+          disabled={!editable}
+          onChange={(e) => setActiveTag(e.target.value)}
+          className="rounded-lg bg-gray-800 border border-gray-700 px-2 py-1 text-gray-100 focus:outline-none focus:border-emerald-500 disabled:opacity-40"
+        >
+          {tags.map((tag) => (
+            <option key={tag} value={tag}>
+              {tag}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <div className="flex items-center justify-between gap-4">
         <div>
