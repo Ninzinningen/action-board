@@ -1,6 +1,7 @@
 "use client";
 
 import { Countdown } from "@/components/Countdown";
+import { DataBackup } from "@/components/DataBackup";
 import { Goals } from "@/components/Goals";
 import { HabitTracker } from "@/components/HabitTracker";
 import { History } from "@/components/History";
@@ -25,6 +26,7 @@ export default function Home() {
         <HabitTracker todayStr={todayStr} />
         <Goals />
         <History todayStr={todayStr} />
+        <DataBackup />
       </main>
     </div>
   );
