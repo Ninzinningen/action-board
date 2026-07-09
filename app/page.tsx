@@ -2,6 +2,7 @@
 
 import { Countdown } from "@/components/Countdown";
 import { DataBackup } from "@/components/DataBackup";
+import { Declaration } from "@/components/Declaration";
 import { Goals } from "@/components/Goals";
 import { HabitTracker } from "@/components/HabitTracker";
 import { History } from "@/components/History";
@@ -26,6 +27,7 @@ export default function Home() {
         <HabitTracker todayStr={todayStr} />
         <Goals />
         <History todayStr={todayStr} />
+        <Declaration todayStr={todayStr} />
         <DataBackup />
       </main>
     </div>
